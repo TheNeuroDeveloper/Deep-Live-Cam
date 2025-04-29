@@ -28,7 +28,7 @@ class VideoCapturer:
                     f"Invalid device index {device_index}. Available devices: {len(devices)}"
                 )
 
-    def start(self, width: int = 960, height: int = 540, fps: int = 60) -> bool:
+    def start(self, width: int = 960, height: int = 540, fps: int = 30) -> bool:
         """Initialize and start video capture"""
         try:
             if platform.system() == "Windows":
@@ -55,10 +55,18 @@ class VideoCapturer:
             if not self.cap or not self.cap.isOpened():
                 raise RuntimeError("Failed to open camera")
 
-            # Configure format
+            # Configure format and performance settings
             self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
             self.cap.set(cv2.CAP_PROP_FPS, fps)
+            
+            # Optimize buffer size
+            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            
+            # Set pixel format to reduce processing overhead
+            if platform.system() == "Darwin":  # macOS specific optimizations
+                self.cap.set(cv2.CAP_PROP_FORMAT, cv2.CV_8UC3)  # Use RGB format
+                self.cap.set(cv2.CAP_PROP_CONVERT_RGB, 0)  # Disable automatic conversion
 
             self.is_running = True
             return True

@@ -3,7 +3,6 @@ import webbrowser
 import customtkinter as ctk
 from typing import Callable, Tuple
 import cv2
-from cv2_enumerate_cameras import enumerate_cameras  # Add this import
 from PIL import Image, ImageOps
 import time
 import json
@@ -28,6 +27,7 @@ from modules.utilities import (
 from modules.video_capture import VideoCapturer
 from modules.gettext import LanguageManager
 import platform
+import numpy as np
 
 if platform.system() == "Windows":
     from pygrabber.dshow_graph import FilterGraph
@@ -797,7 +797,6 @@ def webcam_preview(root: ctk.CTk, camera_index: int):
         )
 
 
-
 def get_available_cameras():
     """Returns a list of available camera names and indices."""
     if platform.system() == "Windows":
@@ -838,29 +837,20 @@ def get_available_cameras():
         camera_indices = []
         camera_names = []
 
-        if platform.system() == "Darwin":  # macOS specific handling
-            # Try to open the default FaceTime camera first
-            cap = cv2.VideoCapture(0)
+        # On macOS, try indices 0, 1, and 2
+        test_indices = [0, 1, 2] if platform.system() == "Darwin" else range(10)
+        
+        for i in test_indices:
+            cap = cv2.VideoCapture(i)
             if cap.isOpened():
-                camera_indices.append(0)
-                camera_names.append("FaceTime Camera")
+                # Try to get camera name on macOS
+                if platform.system() == "Darwin" and i == 0:
+                    camera_indices.append(i)
+                    camera_names.append("FaceTime Camera")
+                else:
+                    camera_indices.append(i)
+                    camera_names.append(f"Camera {i}")
                 cap.release()
-
-            # On macOS, additional cameras typically use indices 1 and 2
-            for i in [1, 2]:
-                cap = cv2.VideoCapture(i)
-                if cap.isOpened():
-                    camera_indices.append(i)
-                    camera_names.append(f"Camera {i}")
-                    cap.release()
-        else:
-            # Linux camera detection - test first 10 indices
-            for i in range(10):
-                cap = cv2.VideoCapture(i)
-                if cap.isOpened():
-                    camera_indices.append(i)
-                    camera_names.append(f"Camera {i}")
-                    cap.release()
 
         if not camera_names:
             return [], ["No cameras found"]
@@ -872,7 +862,7 @@ def create_webcam_preview(camera_index: int):
     global preview_label, PREVIEW
 
     cap = VideoCapturer(camera_index)
-    if not cap.start(PREVIEW_DEFAULT_WIDTH, PREVIEW_DEFAULT_HEIGHT, 60):
+    if not cap.start(PREVIEW_DEFAULT_WIDTH, PREVIEW_DEFAULT_HEIGHT, 30):  # Reduced FPS
         update_status("Failed to start camera")
         return
 
@@ -885,31 +875,34 @@ def create_webcam_preview(camera_index: int):
     fps_update_interval = 0.5
     frame_count = 0
     fps = 0
+    
+    # Pre-load source image if available
+    if not modules.globals.map_faces and modules.globals.source_path:
+        source_image = get_one_face(cv2.imread(modules.globals.source_path))
 
+    # Create a reusable numpy array for the frame
+    frame_buffer = np.zeros((PREVIEW_DEFAULT_HEIGHT, PREVIEW_DEFAULT_WIDTH, 3), dtype=np.uint8)
+    
     while True:
         ret, frame = cap.read()
         if not ret:
             break
 
-        temp_frame = frame.copy()
+        # Use the pre-allocated buffer
+        temp_frame = frame_buffer
+        np.copyto(temp_frame, frame)
 
         if modules.globals.live_mirror:
             temp_frame = cv2.flip(temp_frame, 1)
 
-        if modules.globals.live_resizable:
-            temp_frame = fit_image_to_size(
-                temp_frame, PREVIEW.winfo_width(), PREVIEW.winfo_height()
-            )
-
-        else:
-            temp_frame = fit_image_to_size(
-                temp_frame, PREVIEW.winfo_width(), PREVIEW.winfo_height()
-            )
+        # Only resize if necessary
+        current_width = PREVIEW.winfo_width()
+        current_height = PREVIEW.winfo_height()
+        if modules.globals.live_resizable and (current_width != temp_frame.shape[1] or current_height != temp_frame.shape[0]):
+            temp_frame = fit_image_to_size(temp_frame, current_width, current_height)
 
         if not modules.globals.map_faces:
-            if source_image is None and modules.globals.source_path:
-                source_image = get_one_face(cv2.imread(modules.globals.source_path))
-
+            # Process frame with available processors
             for frame_processor in frame_processors:
                 if frame_processor.NAME == "DLC.FACE-ENHANCER":
                     if modules.globals.fp_ui["face_enhancer"]:
@@ -944,8 +937,12 @@ def create_webcam_preview(camera_index: int):
                 2,
             )
 
-        image = cv2.cvtColor(temp_frame, cv2.COLOR_BGR2RGB)
-        image = Image.fromarray(image)
+        # Convert to RGB only once
+        if not hasattr(temp_frame, '_rgb_converted'):
+            temp_frame = cv2.cvtColor(temp_frame, cv2.COLOR_BGR2RGB)
+            temp_frame._rgb_converted = True
+
+        image = Image.fromarray(temp_frame)
         image = ImageOps.contain(
             image, (temp_frame.shape[1], temp_frame.shape[0]), Image.LANCZOS
         )
@@ -1001,7 +998,6 @@ def create_source_target_popup_for_webcam(
         POPUP_LIVE, text=_("Submit"), command=lambda: on_submit_click()
     )
     close_button.place(relx=0.7, rely=0.92, relwidth=0.2, relheight=0.05)
-
 
 
 def clear_source_target_images(map: list):

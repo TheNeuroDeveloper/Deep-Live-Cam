@@ -19,8 +19,16 @@ def get_face_analyser() -> Any:
     global FACE_ANALYSER
 
     if FACE_ANALYSER is None:
-        FACE_ANALYSER = insightface.app.FaceAnalysis(name='buffalo_l', providers=modules.globals.execution_providers)
-        FACE_ANALYSER.prepare(ctx_id=0, det_size=(640, 640))
+        FACE_ANALYSER = insightface.app.FaceAnalysis(
+            name='buffalo_l',
+            providers=modules.globals.execution_providers,
+            allowed_modules=['detection', 'recognition']  # Only load necessary modules
+        )
+        FACE_ANALYSER.prepare(
+            ctx_id=0,
+            det_size=(320, 320),  # Reduced detection size for better performance
+            det_thresh=0.5  # Slightly lower threshold but still accurate
+        )
     return FACE_ANALYSER
 
 

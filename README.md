@@ -274,6 +274,70 @@ python run.py --execution-provider openvino
 ```
 </details>
 
+## MacOS Performance Optimizations
+
+This branch includes specific optimizations for MacOS users, particularly tested on Apple Silicon (M2 Max) hardware. These optimizations significantly improve FPS performance during live camera operations.
+
+### Optimized Features
+- Camera capture settings optimized for MacOS
+- Face detection parameters tuned for Apple Silicon
+- Memory management improvements
+- Reduced processing overhead
+
+### Requirements for MacOS
+- MacOS 11.0 or later
+- Apple Silicon (M1/M2) or Intel processor
+- Python 3.10 or later
+- FaceTime HD Camera or external webcam
+
+### MacOS Installation Steps
+1. Clone the repository:
+```bash
+git clone https://github.com/yourusername/Deep-Live-Cam.git
+cd Deep-Live-Cam
+```
+
+2. Create and activate a virtual environment:
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+3. Install dependencies:
+```bash
+pip3 install --upgrade pip
+pip3 install -r requirements.txt
+```
+
+4. Download the model file:
+```bash
+# Create models directory if it doesn't exist
+mkdir -p models
+# Download the model file
+curl -L -o models/inswapper_128_fp16.onnx https://huggingface.co/hacksider/deep-live-cam/resolve/main/inswapper_128_fp16.onnx
+```
+
+### MacOS Performance Tips
+1. For best performance, run with the following settings:
+   - Enable "Fix Blueish Cam" option for better color accuracy
+   - Start with default resolution (960x540) for optimal performance
+   - Use CPU execution provider (default setting)
+
+2. If you need higher FPS:
+   - Reduce the preview window size
+   - Disable face enhancement if not needed
+   - Use a well-lit environment for better face detection
+
+3. If you need higher quality:
+   - Increase the resolution in `modules/video_capture.py`
+   - Adjust `det_size` in `modules/face_analyser.py`
+   - Enable face enhancement for better output
+
+### Known Issues on MacOS
+- Camera index 0 is typically the FaceTime camera
+- External webcams usually use indices 1 or 2
+- Some USB webcams may require manual format selection
+
 ## Usage
 
 **1. Image/Video Mode**
